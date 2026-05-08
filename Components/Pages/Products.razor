@@ -1,0 +1,94 @@
+@page "/products"
+@rendermode InteractiveServer
+@inject IProductService ProductService
+@inject ICategoryService CategoryService
+@inject ICartService CartService
+@inject ICurrentUserService CurrentUser
+@inject NavigationManager Nav
+
+<PageTitle>Товары — OnlineStore</PageTitle>
+
+<h1 class="mb-4"><i class="bi bi-bag"></i> Каталог товаров</h1>
+
+<div class="row mb-4">
+    <div class="col-md-4">
+        <select class="form-select" @bind="SelectedGroupId" @bind:after="LoadProducts">
+            <option value="0">Все категории</option>
+            @if (groups != null)
+            {
+                foreach (var c in groups)
+                {
+                    <option value="@c.Id">@c.Name</option>
+                }
+            }
+        </select>
+    </div>
+</div>
+
+@if (items == null)
+{
+    <p><em>Загрузка...</em></p>
+}
+else if (!items.Any())
+{
+    <div class="alert alert-info">Товары не найдены.</div>
+}
+else
+{
+    <div class="row g-4">
+        @foreach (var product in items)
+        {
+            <div class="col-md-4 col-lg-3">
+                <div class="card h-100 shadow-sm">
+                    @if (!string.IsNullOrEmpty(product.ImageUrl))
+                    {
+                        <img src="@product.ImageUrl" class="card-img-top" style="height: 200px; object-fit: cover;" alt="@product.Name" />
+                    }
+                    <div class="card-body d-flex flex-column">
+                        <h6 class="card-title">@product.Name</h6>
+                        <p class="text-muted small mb-2">@product.Category?.Name</p>
+                        <p class="card-text small flex-grow-1">@product.Description</p>
+                        <div class="d-flex justify-content-between align-items-center mt-2">
+                            <strong class="text-primary">@product.Price.ToString("N0") ₽</strong>
+                            <small class="text-muted">В наличии: @product.Stock</small>
+                        </div>
+                        <div class="d-grid gap-2 mt-3">
+                            <a class="btn btn-outline-primary btn-sm" href="@($"/products/{product.Id}")">
+                                <i class="bi bi-eye"></i> Подробнее
+                            </a>
+                            <button class="btn btn-primary btn-sm" @onclick="() => AddToCart(product.Id)" disabled="@(product.Stock == 0)">
+                                <i class="bi bi-cart-plus"></i> В корзину
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private IEnumerable<Models.Product>? items;
+    private IEnumerable<Models.Category>? groups;
+    private int SelectedGroupId { get; set; } = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        groups = await CategoryService.GetAllAsync();
+        await LoadProducts();
+    }
+
+    private async Task LoadProducts()
+    {
+        items = SelectedGroupId == 0
+            ? await ProductService.GetAllAsync()
+            : await ProductService.GetByCategoryAsync(SelectedGroupId);
+    }
+
+    private async Task AddToCart(int productId)
+    {
+        var customer = await CurrentUser.GetOrCreateDemoCustomerAsync();
+        await CartService.AddToCartAsync(customer.Id, productId);
+        Nav.NavigateTo("/cart");
+    }
+}

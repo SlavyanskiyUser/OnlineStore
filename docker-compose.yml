@@ -1,0 +1,55 @@
+name: onlinestore
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: onlinestore-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: onlinestore
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - onlinestore_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d onlinestore"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - onlinestore-net
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: onlinestore-image
+    container_name: onlinestore-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=onlinestore;Username=postgres;Password=postgres"
+    ports:
+      - "8008:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - onlinestore-net
+
+volumes:
+  onlinestore_data:
+    driver: local
+
+networks:
+  onlinestore-net:
+    driver: bridge
